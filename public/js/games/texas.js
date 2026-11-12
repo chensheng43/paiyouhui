@@ -1,16 +1,57 @@
 // 德州扑克前端
 import { cardHtml } from '../cards.js';
+import { chipStackHtml } from '../chips.js';
 
 const STREET_NAMES = { preflop: '翻牌前', flop: '翻牌', turn: '转牌', river: '河牌', over: '摊牌' };
+
+// 公共牌翻开动画：记录每张牌第一次出现的时间，渲染时用负的 animation-delay
+// 接上进度，这样中途重绘（加注面板、聊天等）不会让牌重新翻一遍。
+const DEAL_STAGGER = 190;
+const DEAL_DURATION = 620;
+let dealWatch = { key: '', starts: new Map() };
+
+function dealAttrs(card, ctx, nextIndex) {
+  const room = ctx.room || {};
+  const key = `${room.id ?? ''}#${room.roundNo ?? ''}`;
+  if (key !== dealWatch.key) dealWatch = { key, starts: new Map() };
+  if (!card || card.id == null) return { extraClass: '', style: '' };
+  let start = dealWatch.starts.get(card.id);
+  if (start === undefined) {
+    start = performance.now() + nextIndex() * DEAL_STAGGER;
+    dealWatch.starts.set(card.id, start);
+  }
+  const elapsed = performance.now() - start;
+  if (elapsed >= DEAL_DURATION) return { extraClass: '', style: '' };
+  return { extraClass: 'dealing', style: `--deal-dur:${DEAL_DURATION}ms;--deal-delay:${Math.round(-elapsed)}ms` };
+}
 
 export function renderCenter(ctx) {
   const s = ctx.s;
   const parts = [];
   parts.push(`<div class="stage-label">${STREET_NAMES[s.street] || '牌局'}</div>`);
-  parts.push(`<div class="pot"><span class="chips">🪙</span><b>${s.pot}</b><span>底池</span></div>`);
+  parts.push(`<div class="pot${ctx.ui.chipPotPulse ? ' bump' : ''}" aria-label="底池 ${s.pot}">
+    <span class="pot-chips">${chipStackHtml(s.pot, { max: 5 })}</span><b>${s.pot}</b><span>底池</span></div>`);
+  // 人多时手机屏幕放不下每个座位的筹码牌，改在牌桌中央用一行小筹码列出本轮下注
+  const bettors = (s.players || []).filter((p) => Number(p.bet) > 0);
+  const betLine = bettors.length
+    ? `<div class="bet-line"><span class="bl-label">本轮</span>${bettors
+        .map(
+          (p) => `<span class="bl-item${p.folded ? ' folded' : ''}">
+            <span class="bl-name">${p.seat === ctx.mySeat ? '你' : ctx.esc(ctx.nameOf(p.seat))}</span>
+            <span class="chip-stack">${chipStackHtml(p.bet, { max: 2 })}</span><b>${p.bet}</b></span>`
+        )
+        .join('')}</div>`
+    : '';
   const slots = [];
+  let fresh = 0;
   for (let i = 0; i < 5; i++) {
-    slots.push(s.community[i] ? cardHtml(s.community[i], { small: true }) : '<span class="slot"></span>');
+    const card = s.community[i];
+    if (!card) {
+      slots.push('<span class="slot"></span>');
+      continue;
+    }
+    const deal = dealAttrs(card, ctx, () => fresh++);
+    slots.push(cardHtml(card, { small: true, ...deal }));
   }
   parts.push(`<div class="community">${slots.join('')}</div>`);
   if (s.phase === 'over') {
@@ -18,8 +59,9 @@ export function renderCenter(ctx) {
   } else {
     const call = s.toCall || 0;
     parts.push(`<div class="stage-title">${s.turn === ctx.mySeat ? (call ? `轮到你 · 需跟注 ${call}` : '轮到你 · 可过牌') : `等待 ${ctx.esc(ctx.nameOf(s.turn))}`}</div>`);
-    parts.push(`<div class="level-row"><span class="level-pill">当前注 ${s.currentBet}</span><span class="level-pill">盲注 ${s.sb}/${s.bb}</span></div>`);
+    parts.push(`<div class="level-row texas-level${betLine ? ' with-bets' : ''}"><span class="level-pill">当前注 ${s.currentBet}</span><span class="level-pill">盲注 ${s.sb}/${s.bb}</span></div>`);
   }
+  if (betLine) parts.push(betLine);
   return parts.join('');
 }
 
@@ -80,9 +122,13 @@ export function seatInfo(seat, ctx) {
   if (p.isSB) tags.push('SB');
   if (p.isBB) tags.push('BB');
   return {
-    tag: tags.join(' · ') || p.lastAction || '',
-    tagClass: p.lastAction === '弃牌' ? 'red' : p.lastAction ? 'green' : '',
-    sub: `${p.chips} 筹码${p.bet ? ` · 注 ${p.bet}` : ''}${p.folded ? ' · 弃牌' : ''}${p.allin ? ' · 全下' : ''}`,
+    // 弃牌时头像上会盖红色印章，这里不再重复文字标签
+    tag: tags.join(' · ') || (p.folded ? '' : p.lastAction || ''),
+    tagClass: p.folded ? '' : p.lastAction === '弃牌' ? 'red' : p.lastAction ? 'green' : '',
+    sub: `${p.chips} 筹码${p.contrib ? ` · 已投 ${p.contrib}` : ''}${p.allin ? ' · 全下' : ''}`,
+    bet: p.bet,
+    contrib: p.contrib,
+    allin: p.allin,
     count: null
   };
 }

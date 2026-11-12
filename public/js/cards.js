@@ -24,7 +24,8 @@ export function cardHtml(c, opts = {}) {
     dim = false,
     badge = '',
     trump = false,
-    extraClass = ''
+    extraClass = '',
+    style = ''
   } = opts;
   const classes = ['pcard'];
   if (small) classes.push('sm');
@@ -39,17 +40,18 @@ export function cardHtml(c, opts = {}) {
   if (extraClass) classes.push(extraClass);
   const label = cardName(c);
   const data = selectable ? ` data-cid="${c.id}"` : '';
+  const styleAttr = style ? ` style="${style}"` : '';
   const badgeHtml = badge ? `<i class="pc-badge">${badge}</i>` : '';
   const trumpHtml = trump ? `<i class="pc-trump">主</i>` : '';
   if (c.r >= 15) {
-    return `<div class="${classes.join(' ')}"${data} title="${label}" role="img" aria-label="${label}">${badgeHtml}
+    return `<div class="${classes.join(' ')}"${data}${styleAttr} title="${label}" role="img" aria-label="${label}">${badgeHtml}
       <span class="pc-corner tl"><b>王</b><i>JOKER</i></span>
       <span class="pc-corner br"><b>王</b><i>JOKER</i></span>
       <span class="pc-center"><b>JOKER</b><em>${c.r === 16 ? '大王' : '小王'}</em></span>
     </div>`;
   }
   const suit = SUITS[c.s];
-  return `<div class="${classes.join(' ')}"${data} title="${label}" role="img" aria-label="${label}">${badgeHtml}${trumpHtml}
+  return `<div class="${classes.join(' ')}"${data}${styleAttr} title="${label}" role="img" aria-label="${label}">${badgeHtml}${trumpHtml}
     <span class="pc-corner tl"><b>${rankName(c.r)}</b><i>${suit}</i></span>
     <span class="pc-center">${suit}</span>
     <span class="pc-corner br"><b>${rankName(c.r)}</b><i>${suit}</i></span>

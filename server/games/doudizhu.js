@@ -358,6 +358,9 @@ export class DouDizhu {
     this.playCounts = [0, 0, 0];
     this.bombs = 0;
     this.history = [];
+    // 当前一轮：本轮已发生的出牌/不出，用于牌桌展示；trickOver 表示两家不出、等待新一轮先手
+    this.trick = [];
+    this.trickOver = false;
     this.deal();
   }
 
@@ -390,6 +393,9 @@ export class DouDizhu {
     this.base = 1;
     this.playCounts = [0, 0, 0];
     this.bombs = 0;
+    this.trick = [];
+    this.trickOver = false;
+    this.history = [];
     this.pushLog(`${this.players[this.bidTurn].name} 开始叫地主`);
   }
 
@@ -434,12 +440,14 @@ export class DouDizhu {
       if (!this.lastPlay) return { ok: false, error: '你是先手，必须出牌' };
       this.passes++;
       this.history.push({ seat, type: 'pass' });
+      this.trick.push({ seat, type: 'pass' });
       this.pushLog(`${this.players[seat].name} 不出`);
       if (this.passes >= 2) {
         const leader = this.lastPlay.seat;
         this.lastPlay = null;
         this.passes = 0;
         this.turn = leader;
+        this.trickOver = true;
         this.history.push({ type: 'newTrick', seat: leader });
         this.pushLog(`新一轮，${this.players[leader].name} 先出`);
       } else {
@@ -474,6 +482,12 @@ export class DouDizhu {
       }
       this.lastPlay = { seat, cards, pattern };
       this.passes = 0;
+      // 上一轮结束后，先手的第一手牌开启新一轮
+      if (this.trickOver) {
+        this.trick = [];
+        this.trickOver = false;
+      }
+      this.trick.push({ seat, type: 'play', cards, pattern: pattern.type, size: pattern.size });
       this.history.push({ seat, type: 'play', cards, pattern: pattern.type });
       this.pushLog(`${this.players[seat].name} 出 ${cards.map((c) => this.cardText(c)).join(' ')}`);
 
@@ -506,6 +520,8 @@ export class DouDizhu {
     this.turn = this.landlord;
     this.lastPlay = null;
     this.passes = 0;
+    this.trick = [];
+    this.trickOver = false;
     this.pushLog(`${this.players[this.landlord].name} 成为地主，底牌：${this.bottom.map((c) => this.cardText(c)).join(' ')}`);
   }
 
@@ -612,6 +628,13 @@ export class DouDizhu {
       lastPlay: this.lastPlay
         ? { seat: this.lastPlay.seat, cards: this.lastPlay.cards, type: this.lastPlay.pattern.type, size: this.lastPlay.pattern.size }
         : null,
+      // 本轮所有动作（含不出），让每个玩家都能在牌桌上看到本轮其他人出了什么
+      trick: this.trick.map((a) =>
+        a.type === 'pass'
+          ? { seat: a.seat, type: 'pass' }
+          : { seat: a.seat, type: 'play', cards: a.cards, pattern: a.pattern, size: a.size }
+      ),
+      trickOver: this.trickOver,
       passes: this.passes,
       multiplier: this.multiplier,
       base: this.base,

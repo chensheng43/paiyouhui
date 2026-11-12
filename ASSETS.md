@@ -6,6 +6,7 @@
 | --- | --- | --- |
 | 品牌标识 | `public/assets/logo.svg`, `public/assets/favicon.svg` | 原创 SVG，牌扇 + 黑金配色 |
 | 牌背 | `public/assets/card-back.svg` | 原创 SVG，金色藤蔓与红底纹样 |
+| 筹码 | `public/assets/chip-1.svg`、`chip-5.svg`、`chip-25.svg`、`chip-100.svg` | 原创 SVG，四档面值的筹码盘；按金额拆分显示，配合飞入底池动画 |
 | 扑克牌面 | `public/css/app.css` + `public/js/cards.js` | 纯 CSS + Unicode 花色实时绘制，无扫描图 |
 | 桌布 / 大厅背景 | `public/css/app.css` | CSS 径向渐变、纹理与椭圆桌面 |
 | 头像 | 系统 Emoji（🦊🐼🐯…） | 不打包第三方头像图片 |

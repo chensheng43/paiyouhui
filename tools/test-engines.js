@@ -5,6 +5,7 @@ import { TexasHoldem } from '../server/games/texas.js';
 import { ShengJi } from '../server/games/shengji.js';
 import { eval3, compare3, eval5, bestHand, compareEval, buildPots, capFoldedContribs } from '../server/games/cards.js';
 import { parseDdz, ddzCanBeat } from '../public/js/combos.js';
+import { chipStackHtml } from '../public/js/chips.js';
 
 let pass = 0;
 let fail = 0;
@@ -123,6 +124,55 @@ console.log('· 边池');
   ];
   capFoldedContribs(refund);
   ok(refund[2].contrib === 50 && refund[2].chips === 50, '弃牌者超额投入退回');
+}
+
+console.log('· 筹码素材拆分');
+{
+  ok(chipStackHtml(0) === '', '0 筹码不生成图片');
+  const h = chipStackHtml(30);
+  ok(h.includes('chip-25') && h.includes('chip-5') && !h.includes('chip-100'), '30 拆成 25+5 两张筹码');
+  const capped = chipStackHtml(2000, { max: 3 });
+  ok((capped.match(/class="chip /g) || []).length === 3, '筹码堆最多显示指定张数');
+}
+
+console.log('· 斗地主本轮出牌记录');
+{
+  const e = new DouDizhu(
+    Array.from({ length: 3 }, (_, i) => ({ id: 'p' + i, name: 'P' + i, avatar: '🙂' })),
+    {}
+  );
+  // 直接构造出牌阶段，方便断言“当前一轮”的记录
+  e.phase = 'play';
+  e.landlord = 0;
+  e.turn = 0;
+  e.base = 3;
+  e.lastPlay = null;
+  e.passes = 0;
+  e.trick = [];
+  e.trickOver = false;
+  e.hands = [
+    [{ r: 3, s: 0, id: 101 }, { r: 4, s: 0, id: 102 }, { r: 9, s: 0, id: 107 }],
+    [{ r: 5, s: 0, id: 103 }, { r: 6, s: 0, id: 104 }],
+    [{ r: 7, s: 0, id: 105 }, { r: 8, s: 0, id: 106 }]
+  ];
+
+  let v = e.view(0);
+  ok(v.trick.length === 0 && !v.trickOver, '出牌阶段本轮为空');
+  ok(e.act(0, { type: 'play', cards: [101] }).ok, 'P0 出单张');
+  v = e.view(1);
+  ok(v.trick.length === 1 && v.trick[0].seat === 0 && v.trick[0].type === 'play', '出牌进入本轮记录');
+  ok(v.trick[0].pattern === 'single' && v.trick[0].cards.length === 1, '本轮记录牌型与牌');
+
+  ok(e.act(1, { type: 'pass' }).ok && e.act(2, { type: 'pass' }).ok, '两家不出');
+  v = e.view(2);
+  ok(v.trickOver && v.trick.length === 3, '两家不出后标记本轮结束');
+  ok(v.trick.filter((a) => a.type === 'pass').length === 2, '本轮保留两次不出');
+  ok(v.trick.filter((a) => a.type === 'pass').every((a) => a.cards === undefined), '不出记录不携带牌');
+  ok(v.turn === 0 && v.lastPlay === null, '牌权回到最后出牌者');
+
+  ok(e.act(0, { type: 'play', cards: [102] }).ok, '新一轮先手出牌');
+  v = e.view(1);
+  ok(!v.trickOver && v.trick.length === 1 && v.trick[0].seat === 0, '新一轮重新开始记录');
 }
 
 console.log('· 斗地主 300 局');

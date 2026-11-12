@@ -387,6 +387,18 @@ button { -webkit-tap-highlight-color: transparent; }
   transition: box-shadow .2s, border-color .2s, opacity .2s;
 }
 .seat .avatar .mini { position: absolute; right: -6px; bottom: -3px; font-size: 9px; background: #0c1e16; border: 1px solid var(--line); border-radius: 999px; padding: 2px 4px; color: var(--gold-2); }
+/* 弃牌印章：盖在头像上，不跟着头像一起变灰 */
+.seat .ava-wrap { position: relative; width: 54px; margin: 0 auto; }
+.seat .fold-stamp {
+  position: absolute; left: 50%; top: 50%; z-index: 2;
+  transform: translate(-50%, -50%) rotate(-13deg);
+  padding: 3px 8px; border-radius: 5px; white-space: nowrap; pointer-events: none;
+  font-family: var(--serif); font-size: 15px; font-weight: 800; line-height: 1.1;
+  letter-spacing: .12em; color: #ff6a63; background: rgba(39, 5, 5, .82);
+  border: 2px solid #e2504a;
+  box-shadow: 0 3px 10px rgba(0,0,0,.55), inset 0 0 0 2px rgba(255,106,99,.16);
+  text-shadow: 0 1px 3px rgba(0,0,0,.8);
+}
 .seat .name {
   margin-top: 5px; font-size: 11px; color: #d8e3d9; white-space: nowrap; overflow: hidden;
   text-overflow: ellipsis; text-shadow: 0 1px 4px rgba(0,0,0,.6);
@@ -403,6 +415,31 @@ button { -webkit-tap-highlight-color: transparent; }
   position: absolute; right: -4px; top: -2px; min-width: 18px; height: 18px; padding: 0 5px;
   border-radius: 9px; background: #0a1a13; border: 1px solid var(--line); display: grid;
   place-items: center; font-size: 9.5px; color: var(--gold-2); font-weight: 700;
+}
+/* 德州：每位玩家本轮推出去的筹码，金额始终可读 */
+.chip { display: block; flex: 0 0 auto; width: 15px; height: 15px; border-radius: 50%; }
+.seat-bet {
+  display: flex; width: fit-content; margin: 4px auto 0; padding: 2px 8px 2px 4px;
+  align-items: center; gap: 6px;
+  border-radius: 999px; background: linear-gradient(180deg, rgba(9,22,16,.94), rgba(5,14,10,.94));
+  border: 1px solid rgba(217,181,109,.3); line-height: 1;
+  box-shadow: 0 3px 10px rgba(0,0,0,.4), inset 0 1px 0 rgba(255,255,255,.06);
+}
+.seat-bet b { font: 700 12px/1 Georgia, "Songti SC", serif; color: var(--gold-2); letter-spacing: .02em; }
+.seat-bet .chip-stack { display: flex; align-items: center; }
+.seat-bet .chip {
+  width: 16px; height: 16px; margin-left: -6px;
+  transform: translateY(calc(var(--i) * -1px)) rotate(calc(var(--i) * 9deg));
+  filter: drop-shadow(0 1px 2px rgba(0,0,0,.45));
+}
+.seat-bet .chip:first-child { margin-left: 0; }
+.seat-bet.pulse { animation: betPop .42s cubic-bezier(.2,.9,.3,1.4); }
+.seat-bet.allin { border-color: rgba(217,95,92,.55); box-shadow: 0 0 14px rgba(217,95,92,.3), inset 0 1px 0 rgba(255,255,255,.06); }
+.seat.folded .seat-bet { opacity: .55; filter: grayscale(.65); }
+@keyframes betPop {
+  0% { transform: scale(.72); }
+  55% { transform: scale(1.12); }
+  100% { transform: scale(1); }
 }
 .seat .seat-cards { display: flex; justify-content: center; margin-top: 4px; height: 30px; }
 .seat .seat-cards .pcard { margin-left: -17px; transform-origin: bottom center; }
@@ -433,15 +470,57 @@ button { -webkit-tap-highlight-color: transparent; }
 .stage-title { font-family: var(--serif); font-size: 15px; letter-spacing: .08em; color: var(--gold-2); }
 .stage-sub { font-size: 11px; color: var(--muted); }
 .pot {
+  position: relative;
   display: inline-flex; align-items: center; gap: 9px; padding: 7px 16px; border-radius: 999px;
   background: rgba(0,0,0,.28); border: 1px solid rgba(217,181,109,.2);
   box-shadow: inset 0 1px 0 rgba(255,255,255,.05);
 }
+.pot .pot-chips { display: flex; align-items: center; }
+.pot .pot-chips:empty { display: none; }
 .pot .chips { font-size: 14px; }
+.pot .chip {
+  width: 19px; height: 19px; margin-left: -7px;
+  transform: translateY(calc(var(--i) * -1px)) rotate(calc(var(--i) * 6deg));
+  filter: drop-shadow(0 1px 3px rgba(0,0,0,.4));
+}
+.pot .chip:first-child { margin-left: 0; }
+.pot.bump { animation: potBump .42s cubic-bezier(.2,.9,.3,1.3); }
+.pot-gain {
+  position: absolute; right: -6px; top: -15px; pointer-events: none;
+  font: 700 12px/1 Georgia, serif; color: var(--gold-2);
+  text-shadow: 0 1px 8px rgba(0,0,0,.6);
+  animation: potGain .8s ease-out forwards;
+}
+@keyframes potBump {
+  0% { transform: scale(.96); }
+  45% { transform: scale(1.06); }
+  100% { transform: scale(1); }
+}
+@keyframes potGain {
+  0% { opacity: 0; transform: translateY(3px) scale(.85); }
+  25% { opacity: 1; }
+  100% { opacity: 0; transform: translateY(-15px) scale(1.05); }
+}
 .pot b { font-family: Georgia, serif; color: var(--gold-2); font-size: 17px; letter-spacing: .02em; }
-.pot span { font-size: 9px; color: var(--muted); letter-spacing: .12em; }
-.community { display: flex; gap: 5px; justify-content: center; min-height: 64px; align-items: center; }
+.pot b + span { font-size: 9px; color: var(--muted); letter-spacing: .12em; }
+/* 人多时手机上的本轮下注汇总（桌面端与 4 人以内手机不显示，用座位筹码牌） */
+.bet-line { display: none; }
+.community { display: flex; gap: 5px; justify-content: center; min-height: 64px; align-items: center; perspective: 800px; }
 .community .pcard { box-shadow: 0 6px 16px rgba(0,0,0,.4); }
+.community .pcard.dealing {
+  animation: cardDeal var(--deal-dur, 620ms) cubic-bezier(.22,.8,.3,1) var(--deal-delay, 0ms) backwards;
+  will-change: transform, opacity;
+}
+@keyframes cardDeal {
+  0% { opacity: 0; transform: translate(58px, -42px) rotate(14deg) rotateY(-95deg) scale(.68); }
+  35% { opacity: 1; }
+  68% { transform: translate(-2px, 3px) rotate(-1.5deg) rotateY(6deg) scale(1.05); }
+  85% { transform: translate(0, -1px) rotate(0deg) rotateY(0deg) scale(.99); }
+  100% { opacity: 1; transform: none; }
+}
+@media (prefers-reduced-motion: reduce) {
+  .community .pcard.dealing { animation: none; }
+}
 .community .slot { width: 44px; height: 62px; border-radius: 5px; border: 1px dashed rgba(217,181,109,.18); }
 .play-spot { display: flex; flex-direction: column; align-items: center; gap: 4px; }
 .play-spot .who { font-size: 9.5px; color: var(--muted); letter-spacing: .08em; }
@@ -454,6 +533,39 @@ button { -webkit-tap-highlight-color: transparent; }
 .trick-item .cards { display: flex; }
 .trick-item .pcard { margin-left: -16px; }
 .trick-item .pcard:first-child { margin-left: 0; }
+/* 斗地主：底牌在牌桌顶部中央，给两边的出牌留出空间 */
+.bottom-layer { position: absolute; inset: 0; z-index: 3; pointer-events: none; }
+.top-bottom {
+  position: absolute; left: 50%; top: 6px; transform: translateX(-50%);
+  display: flex; flex-direction: column; align-items: center; gap: 2px;
+}
+.top-bottom.at-bottom { top: auto; bottom: 8px; }
+.top-bottom .stage-sub { font-size: 9px; letter-spacing: .14em; }
+.top-bottom .card-row { gap: 4px; }
+/* 斗地主：出牌/不出贴在出牌人座位旁 */
+.trick-layer { position: absolute; inset: 0; z-index: 4; pointer-events: none; }
+.trick-play {
+  position: absolute; display: flex; flex-direction: column; align-items: center; gap: 3px;
+  min-height: 78px; transform: translate(-50%, -50%);
+}
+.trick-play .tp-head {
+  font-size: 9.5px; color: var(--muted); white-space: nowrap; letter-spacing: .04em;
+  text-shadow: 0 1px 4px rgba(0,0,0,.6);
+}
+.trick-play .tp-head em { font-style: normal; color: var(--gold-2); font-weight: 700; }
+.trick-play.me .tp-head { color: #cfe0d2; }
+.trick-play .tp-cards { display: flex; align-items: flex-end; }
+.trick-play .pcard { margin-left: -20px; box-shadow: 0 5px 14px rgba(0,0,0,.42); }
+.trick-play .pcard:first-child { margin-left: 0; }
+.trick-play.current .pcard { box-shadow: 0 0 0 1.5px rgba(240,211,154,.55), 0 6px 16px rgba(0,0,0,.45); }
+.trick-play .tp-more { font-style: normal; font-size: 9px; color: var(--gold-2); margin-left: 5px; align-self: center; }
+.trick-play .tp-pass {
+  display: inline-flex; align-items: center; justify-content: center; min-width: 38px; height: 24px; padding: 0 10px;
+  border-radius: 999px; border: 1px dashed rgba(217,181,109,.28); background: rgba(0,0,0,.3);
+  color: #c3d2c7; font-size: 10px; font-weight: 600; letter-spacing: .08em;
+}
+.trick-play.over { opacity: .55; }
+.stage-sub.new-trick { color: var(--gold-2); }
 .trump-line { display: flex; align-items: center; gap: 8px; font-size: 11px; color: var(--muted); }
 .trump-badge {
   display: inline-flex; align-items: center; gap: 5px; font-size: 11px; font-weight: 700;
@@ -479,6 +591,19 @@ button { -webkit-tap-highlight-color: transparent; }
 .my-chip .ava { width: 24px; height: 24px; border-radius: 50%; display: grid; place-items: center; background: #1c3a2c; font-size: 15px; }
 .my-chip b { color: var(--text); font-weight: 600; }
 .my-chip .score { color: var(--gold-2); font-family: Georgia, serif; font-size: 12px; }
+.my-bet {
+  display: inline-flex; align-items: center; gap: 4px; padding: 1px 6px 1px 3px;
+  border-radius: 999px; background: rgba(0,0,0,.3); border: 1px solid rgba(217,181,109,.24);
+  line-height: 1;
+}
+.my-bet .chip-stack { display: flex; align-items: center; }
+.my-bet .chip {
+  width: 13px; height: 13px; margin-left: -5px;
+  transform: translateY(calc(var(--i) * -1px)) rotate(calc(var(--i) * 9deg));
+}
+.my-bet .chip:first-child { margin-left: 0; }
+.my-bet b { font: 700 10px/1 Georgia, serif; color: var(--gold-2); }
+.my-bet.pulse { animation: betPop .42s cubic-bezier(.2,.9,.3,1.4); }
 .turn-hint { font-size: 10.5px; color: var(--muted); letter-spacing: .04em; }
 .turn-hint.active { color: var(--gold-2); }
 .timer-ring { font-family: ui-monospace, Menlo, monospace; font-size: 11px; color: var(--gold-2); min-width: 26px; text-align: center; }
@@ -564,6 +689,17 @@ button { -webkit-tap-highlight-color: transparent; }
 
 /* 牌桌上的聊天气泡 */
 .felt-wrap { position: relative; }
+/* 筹码飞入底池的浮层；不参与布局、不挡点击 */
+.chip-layer { position: absolute; inset: 0; z-index: 6; pointer-events: none; overflow: hidden; }
+.chip-fly {
+  position: absolute; left: 0; top: 0; width: 26px; height: 26px; margin: -13px 0 0 -13px;
+  filter: drop-shadow(0 5px 8px rgba(0,0,0,.5)); will-change: transform, opacity;
+}
+.chip-fly::before {
+  content: ""; position: absolute; inset: -8px; border-radius: 50%;
+  background: radial-gradient(circle, rgba(240,211,154,.28), rgba(240,211,154,0) 70%);
+}
+.chip-fly .chip { width: 100%; height: 100%; }
 .chat-layer { position: absolute; inset: 0; z-index: 7; pointer-events: none; }
 .chat-bubble {
   position: absolute; max-width: 240px; padding: 8px 12px 9px;
@@ -712,6 +848,8 @@ button { -webkit-tap-highlight-color: transparent; }
   .table-felt { height: clamp(340px, 52vh, 500px); border-radius: 42% / 50%; }
   .seat { width: 96px; }
   .seat .avatar { width: 46px; height: 46px; font-size: 23px; }
+  .seat .ava-wrap { width: 46px; }
+  .seat .fold-stamp { font-size: 13px; padding: 2px 7px; }
   .seat .name { font-size: 10px; }
   .seat .sub { font-size: 8.5px; }
   .my-strip { width: 100%; }
@@ -758,13 +896,46 @@ button { -webkit-tap-highlight-color: transparent; }
   .felt-watermark { font-size: 56px; }
   .seat { width: 78px; }
   .seat .avatar { width: 40px; height: 40px; font-size: 20px; }
+  .seat .ava-wrap { width: 40px; }
+  .seat .fold-stamp { font-size: 11.5px; padding: 2px 6px; letter-spacing: .08em; }
   .seat .name { font-size: 9px; }
   .seat .sub { display: none; }
   .seat .tag { font-size: 7.5px; padding: 1px 5px; }
+  .seat-bet { margin-top: 3px; padding: 1px 6px 1px 3px; gap: 3px; }
+  .seat-bet .chip { width: 12px; height: 12px; margin-left: -5px; }
+  .seat-bet b { font-size: 9.5px; }
+  .table-felt.crowded .seat-bet { display: none; }
+  .table-felt.crowded .texas-level.with-bets { display: none; }
+  .table-felt.crowded .bet-line {
+    display: flex; flex-wrap: wrap; align-items: center; justify-content: center; gap: 4px 7px;
+    max-width: 100%; padding: 3px 8px; border-radius: 999px;
+    background: rgba(0,0,0,.24); border: 1px solid rgba(217,181,109,.16);
+  }
+  .bet-line .bl-item { display: inline-flex; align-items: center; gap: 3px; font-size: 9px; color: var(--muted); }
+  .bet-line .bl-label { font-size: 8.5px; color: var(--dim); letter-spacing: .1em; }
+  .bet-line .bl-item b { color: var(--gold-2); font: 700 10px/1 Georgia, serif; }
+  .bet-line .bl-item.folded { opacity: .5; }
+  .bet-line .bl-name { max-width: 52px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+  .bet-line .chip-stack { display: flex; align-items: center; }
+  .bet-line .chip { width: 11px; height: 11px; margin-left: -4px; }
+  .bet-line .chip:first-child { margin-left: 0; }
+  .pot .chip { width: 16px; height: 16px; margin-left: -6px; }
+  .pot-gain { font-size: 11px; top: -13px; }
+  .my-bet .chip { width: 11px; height: 11px; margin-left: -4px; }
+  .my-bet b { font-size: 9px; }
   .seat .seat-cards { height: 22px; }
   .seat .seat-cards .pcard { width: 22px; height: 31px; }
   .seat .seat-cards .pcard { margin-left: -18px; }
   .center-stage { width: 76%; }
+  .top-bottom { top: 4px; }
+  .top-bottom.at-bottom { top: auto; bottom: 6px; }
+  .top-bottom .pcard.sm { --cw: 34px; --ch: 48px; }
+  .trick-play { min-height: 62px; }
+  .trick-play .pcard.sm { --cw: 34px; --ch: 48px; }
+  .trick-play .pcard { margin-left: -16px; }
+  .trick-play .pcard:first-child { margin-left: 0; }
+  .trick-play .tp-head { font-size: 8.5px; }
+  .trick-play .tp-pass { min-width: 34px; height: 22px; padding: 0 8px; font-size: 9px; }
   .stage-title { font-size: 13px; }
   .pot b { font-size: 15px; }
   .community .pcard { --cw: 34px; --ch: 48px; }

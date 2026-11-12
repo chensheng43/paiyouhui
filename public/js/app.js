@@ -1,6 +1,7 @@
 // 牌友汇 · 前端主程序
 import { Net } from './net.js';
 import { cardHtml, backHtml, backsHtml, SUITS } from './cards.js';
+import { chipStackHtml } from './chips.js';
 import { installHandSelection } from './selection.js';
 import { sfx } from './sound.js';
 import * as doudizhu from './games/doudizhu.js';
@@ -116,6 +117,12 @@ const state = {
     chatBubbles: [],
     chatSeenId: -1,
     chatTimers: [],
+    // 德州筹码动效：上一次看到的每家本轮注额 / 底池，用来判断谁刚推了筹码
+    chipPrev: {},
+    chipPot: 0,
+    chipRound: null,
+    chipPulses: new Set(),
+    chipPotPulse: false,
     modal: null,
     modalGame: 'doudizhu',
     profileAvatar: '🦊',
@@ -418,6 +425,11 @@ function handleRoom(room) {
     state.ui.dismissedResult = null;
     state.ui.sideOpen = false;
     state.ui.chatSeenId = -1;
+    state.ui.chipPrev = {};
+    state.ui.chipRound = null;
+    state.ui.chipPot = 0;
+    state.ui.chipPulses = new Set();
+    state.ui.chipPotPulse = false;
     clearChatBubbles();
     state.roomBuiltFor = null;
     state.view = 'room';
@@ -484,6 +496,9 @@ function buildRoomSkeleton() {
             <div class="felt-watermark">牌友汇</div>
             <div class="seat-layer" id="seats"></div>
             <div class="center-stage" id="center"></div>
+            <div class="bottom-layer" id="bottom-layer"></div>
+            <div class="trick-layer" id="trick-layer"></div>
+            <div class="chip-layer" id="chip-layer"></div>
             <div id="waiting-layer"></div>
             <div id="result-layer"></div>
           </div>
@@ -533,6 +548,8 @@ function renderRoom() {
   if (snd) snd.textContent = sfx.enabled ? '🔊' : '🔇';
   q('#side-round').textContent = `${room.phase === 'waiting' ? '等待开局' : `第 ${room.roundNo} 局`}${room.spectatorCount ? ` · ${room.spectatorCount} 观战` : ''}`;
   q('#side-panel')?.classList.toggle('open', state.ui.sideOpen);
+  // 5 人以上手机屏幕放不下每个座位的筹码牌，改用中央下注列表
+  q('#table-felt')?.classList.toggle('crowded', (room.players?.length || 0) >= 5);
 
   if (room.phase === 'waiting') renderWaiting(room);
   else renderGame(room);
@@ -551,6 +568,10 @@ function renderWaiting(room) {
   const actions = roomEl.querySelector('#action-bar');
   if (seats) seats.innerHTML = '';
   if (center) center.innerHTML = '';
+  const trick = roomEl.querySelector('#trick-layer');
+  if (trick) trick.innerHTML = '';
+  const bottom = roomEl.querySelector('#bottom-layer');
+  if (bottom) bottom.innerHTML = '';
   if (result) result.innerHTML = '';
   if (hand) hand.innerHTML = '';
   if (head) {
@@ -668,12 +689,119 @@ function fitCurrentHand() {
   if (hand) fitHand(hand);
 }
 
+// 对比上一次牌桌状态，找出刚增加注额的玩家和底池增量（只在德州使用）
+function trackChipFx(room) {
+  const empty = { flights: [], potGain: 0 };
+  const s = room.state;
+  if (room.game !== 'texas' || room.phase !== 'playing' || !s) {
+    state.ui.chipPrev = {};
+    state.ui.chipRound = room.roundNo;
+    state.ui.chipPot = Number(s?.pot) || 0;
+    state.ui.chipPulses = new Set();
+    state.ui.chipPotPulse = false;
+    return empty;
+  }
+  if (state.ui.chipRound !== room.roundNo) {
+    // 新一局：盲注已在桌上，先建立基线，不做整桌飞筹码
+    state.ui.chipRound = room.roundNo;
+    state.ui.chipPrev = {};
+    for (const p of s.players || []) state.ui.chipPrev[p.seat] = Number(p.bet) || 0;
+    state.ui.chipPot = Number(s.pot) || 0;
+    state.ui.chipPulses = new Set();
+    state.ui.chipPotPulse = false;
+    return empty;
+  }
+  const prevPot = state.ui.chipPot || 0;
+  const pot = Number(s.pot) || 0;
+  const pulses = new Set();
+  const flights = [];
+  for (const p of s.players || []) {
+    const before = state.ui.chipPrev[p.seat] ?? 0;
+    const bet = Number(p.bet) || 0;
+    if (bet > before) {
+      pulses.add(p.seat);
+      flights.push({ seat: p.seat, delta: bet - before });
+    }
+    state.ui.chipPrev[p.seat] = bet;
+  }
+  state.ui.chipPulses = pulses;
+  state.ui.chipPotPulse = pot > prevPot;
+  state.ui.chipPot = pot;
+  return { flights, potGain: Math.max(0, pot - prevPot) };
+}
+
+// 把新增筹码从玩家头像抛向底池，并在底池上方飘一个 +N
+function spawnChipFx(room, fx) {
+  if (!fx || (!fx.flights.length && !fx.potGain)) return;
+  let reduceMotion = false;
+  try {
+    reduceMotion = window.matchMedia('(prefers-reduced-motion: reduce)').matches;
+  } catch {
+    reduceMotion = false;
+  }
+  if (reduceMotion) return;
+  const felt = roomEl.querySelector('#table-felt');
+  const layer = roomEl.querySelector('#chip-layer');
+  const potEl = roomEl.querySelector('#center .pot');
+  if (!felt || !layer || !potEl) return;
+  const fRect = felt.getBoundingClientRect();
+  const potRect = potEl.getBoundingClientRect();
+  const endX = potRect.left - fRect.left + potRect.width / 2;
+  const endY = potRect.top - fRect.top + potRect.height / 2;
+  const seats = [...felt.querySelectorAll('.seat')];
+  const anchorOf = (seat) => {
+    if (room.mySeat === seat) return roomEl.querySelector('#my-head .my-chip .ava') || roomEl.querySelector('#my-head');
+    const p = (room.state?.players || []).find((x) => x.seat === seat);
+    if (!p) return null;
+    return seats.find((el) => el.dataset.pid === String(p.id))?.querySelector('.avatar') || null;
+  };
+
+  fx.flights.forEach((f, i) => {
+    const anchor = anchorOf(f.seat);
+    if (!anchor) return;
+    const r = anchor.getBoundingClientRect();
+    const sx = r.left - fRect.left + r.width / 2;
+    const sy = r.top - fRect.top + r.height / 2;
+    const dx = endX - sx;
+    const dy = endY - sy;
+    const arc = Math.min(46, Math.abs(dx) * 0.16 + 16);
+    const el = document.createElement('span');
+    el.className = 'chip-fly';
+    el.innerHTML = chipStackHtml(f.delta, { max: 1 });
+    layer.appendChild(el);
+    if (typeof el.animate !== 'function') {
+      el.remove();
+      return;
+    }
+    const anim = el.animate(
+      [
+        { transform: `translate(${sx}px, ${sy}px) scale(.7)`, opacity: 0 },
+        { transform: `translate(${sx + dx * 0.45}px, ${sy + dy * 0.35 - arc}px) scale(1.15)`, opacity: 1, offset: 0.38 },
+        { transform: `translate(${endX}px, ${endY}px) scale(.55)`, opacity: 0.85 }
+      ],
+      { duration: 520, delay: i * 45, easing: 'cubic-bezier(.22,.68,.3,1)', fill: 'backwards' }
+    );
+    anim.onfinish = () => el.remove();
+    anim.oncancel = () => el.remove();
+  });
+
+  if (fx.potGain > 0) {
+    const gain = document.createElement('span');
+    gain.className = 'pot-gain';
+    gain.textContent = `+${fx.potGain}`;
+    potEl.appendChild(gain);
+    gain.addEventListener('animationend', () => gain.remove(), { once: true });
+  }
+  if (fx.flights.length) sfx.play('chip');
+}
+
 function renderGame() {
   const room = state.room;
   if (!room) return;
   const ctx = makeCtx();
   const UI = GAME_UI[room.game];
   if (!UI) return;
+  const chipFx = trackChipFx(room);
   // 服务端刷新后手牌可能变化，清掉已不存在的选中项
   if (state.ui.selected.size) {
     const ids = new Set((room.state?.hand || []).map((c) => c.id));
@@ -690,6 +818,35 @@ function renderGame() {
   if (waitingEl) waitingEl.innerHTML = '';
   if (seatsEl) seatsEl.innerHTML = buildSeats(ctx);
   if (centerEl) centerEl.innerHTML = UI.renderCenter(ctx);
+  const bottomEl = q('#bottom-layer');
+  if (bottomEl) {
+    if (room.game === 'doudizhu' && room.state?.bottom?.length) {
+      bottomEl.innerHTML = `<div class="top-bottom${room.isSpectator ? ' at-bottom' : ''}"><span class="stage-sub">底牌</span><div class="card-row">${room.state.bottom
+        .map((c) => cardHtml(c, { small: true }))
+        .join('')}</div></div>`;
+    } else {
+      bottomEl.innerHTML = '';
+    }
+  }
+  const trickEl = q('#trick-layer');
+  if (trickEl) {
+    const plays = UI.trickPlays?.(ctx) || [];
+    if (plays.length) {
+      const positions = seatPositions(room);
+      const over = !!room.state?.trickOver;
+      trickEl.innerHTML = plays
+        .map((p) => {
+          const [x, y] = playSpotPos(room, p.seat, positions);
+          const cls = ['trick-play', p.pass ? 'pass' : '', p.current ? 'current' : '', p.me ? 'me' : '', over ? 'over' : '']
+            .filter(Boolean)
+            .join(' ');
+          return `<div class="${cls}" style="left:${x}%;top:${y}%">${p.html}</div>`;
+        })
+        .join('');
+    } else {
+      trickEl.innerHTML = '';
+    }
+  }
   if (headEl) headEl.innerHTML = room.isSpectator ? '' : buildMyHead(ctx);
   if (handEl) {
     if (room.isSpectator) {
@@ -707,6 +864,9 @@ function renderGame() {
       resultEl.innerHTML = '';
     }
   }
+  if (chipFx.flights.length || chipFx.potGain) {
+    requestAnimationFrame(() => spawnChipFx(room, chipFx));
+  }
 }
 
 function seatMarkup(p, x, y, ctx) {
@@ -720,27 +880,38 @@ function seatMarkup(p, x, y, ctx) {
   const sp = room.state?.players?.find((x2) => x2.seat === p.seat);
   const folded = !!sp?.folded;
   const isTurn = ctx.actor === p.seat;
+  const bet = Number(info.bet) || 0;
+  const chipPulse = bet > 0 && state.ui.chipPulses?.has(p.seat) ? ' pulse' : '';
   const cls = ['seat', isTurn ? 'turn' : '', !p.connected && !p.bot ? 'offline' : '', folded ? 'folded' : ''].join(' ');
   const hostBadge = p.isHost ? '<span class="mini">房主</span>' : '';
   const countBadge = info.count !== undefined && info.count !== null ? `<span class="count-badge">${info.count}</span>` : '';
   return `<div class="${cls}" data-pid="${esc(p.id)}" style="left:${x}%;top:${y}%">
-    <div class="avatar">${esc(p.avatar)}${hostBadge}${countBadge}</div>
+    <div class="ava-wrap">
+      <div class="avatar">${esc(p.avatar)}${hostBadge}${countBadge}</div>
+      ${folded ? '<span class="fold-stamp">弃牌</span>' : ''}
+    </div>
     <div class="name">${esc(p.name)}${p.bot ? ' · 托管' : !p.connected ? ' · 离线' : ''}</div>
     <div class="sub">${esc(info.sub || scoreLabel(room, p))}</div>
     ${info.tag ? `<span class="tag ${esc(info.tagClass || '')}">${esc(info.tag)}</span>` : ''}
+    ${
+      bet > 0
+        ? `<div class="seat-bet${chipPulse}${info.allin ? ' allin' : ''}${folded ? ' folded' : ''}" title="本轮下注 ${bet}${info.contrib ? ` · 本局已投 ${info.contrib}` : ''}">
+            <span class="chip-stack">${chipStackHtml(bet, { max: 4 })}</span><b>${bet}</b>
+          </div>`
+        : ''
+    }
     ${info.cards ? `<div class="seat-cards">${backsHtml(info.cards, { xs: true })}</div>` : ''}
   </div>`;
 }
 
-function buildSeats(ctx) {
-  const room = ctx.room;
+// 座位坐标：玩家视角按自己的下家顺序排，观战视角围成一圈
+function seatPositions(room) {
+  const map = new Map();
   if (room.isSpectator) {
     const players = room.players.slice().sort((a, b) => a.seat - b.seat);
     const pos = spectatorPositions(players.length);
-    return players.map((p, i) => {
-      const [x, y] = pos[i] || [50, 50];
-      return seatMarkup(p, x, y, ctx);
-    }).join('');
+    players.forEach((p, i) => map.set(p.seat, pos[i] || [50, 50]));
+    return map;
   }
   const n = room.players.length;
   const my = room.mySeat;
@@ -748,12 +919,32 @@ function buildSeats(ctx) {
     .filter((p) => p.seat !== my)
     .sort((a, b) => ((a.seat - my + n) % n) - ((b.seat - my + n) % n));
   const pos = POSITIONS[opponents.length] || [];
-  return opponents
-    .map((p, i) => {
-      const [x, y] = pos[i] || [10 + i * 12, 20];
-      return seatMarkup(p, x, y, ctx);
-    })
-    .join('');
+  opponents.forEach((p, i) => map.set(p.seat, pos[i] || [10 + i * 12, 20]));
+  return map;
+}
+
+// 出牌位置：正对出牌人前方（上家在下、下家在上，侧面座位朝桌心）
+function playSpotPos(room, seat, positions) {
+  if (!room.isSpectator && seat === room.mySeat) return [50, 80];
+  const [x, y] = positions.get(seat) || [50, 50];
+  let dx = 0;
+  if (y >= 35 && y <= 65) {
+    if (x < 40) dx = 16;
+    else if (x > 60) dx = -16;
+  }
+  const dy = y < 50 ? 22 : -22;
+  return [Math.max(10, Math.min(90, x + dx)), Math.max(10, Math.min(90, y + dy))];
+}
+
+function buildSeats(ctx) {
+  const room = ctx.room;
+  const positions = seatPositions(room);
+  const out = [];
+  for (const [seat, [x, y]] of positions) {
+    const p = room.players.find((pp) => pp.seat === seat);
+    if (p) out.push(seatMarkup(p, x, y, ctx));
+  }
+  return out.join('');
 }
 
 function buildMyHead(ctx) {
@@ -785,6 +976,12 @@ function buildMyHead(ctx) {
   }
   const actor = ctx.actor;
   const s = room.state;
+  const engineMe = s?.players?.find((x) => x.seat === room.mySeat);
+  const myBet =
+    room.game === 'texas' && engineMe?.bet > 0
+      ? `<span class="my-bet${state.ui.chipPulses?.has(room.mySeat) ? ' pulse' : ''}" title="本轮下注 ${engineMe.bet}${engineMe.contrib ? ` · 本局已投 ${engineMe.contrib}` : ''}">
+          <span class="chip-stack">${chipStackHtml(engineMe.bet, { max: 3 })}</span><b>${engineMe.bet}</b></span>`
+      : '';
   let turnText = '';
   if (room.phase === 'over') turnText = '本局结束';
   else if (room.phase === 'waiting') turnText = '等待开局';
@@ -796,6 +993,7 @@ function buildMyHead(ctx) {
   return `<div class="my-head">
     <div class="my-chip"><span class="ava">${esc(me.avatar)}</span><b>${esc(me.name)}</b>
       <span class="score">${scoreLabel(room, me)}</span>
+      ${myBet}
       ${info.tag ? `<span class="tag ${esc(info.tagClass || '')}">${esc(info.tag)}</span>` : ''}
     </div>
     <span class="turn-hint ${actor === room.mySeat ? 'active' : ''}">${esc(turnText)}</span>

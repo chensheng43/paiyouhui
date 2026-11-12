@@ -80,13 +80,12 @@ export function seatInfo(seat, ctx) {
   const p = s.players.find((x) => x.seat === seat);
   if (!p) return {};
   const tags = [];
-  if (p.folded) tags.push('已弃牌');
-  else if (p.looked) tags.push('已看牌');
-  else tags.push('闷牌');
+  // 弃牌时头像上会盖红色印章，文字标签只保留全下等额外状态
+  if (!p.folded) tags.push(p.looked ? '已看牌' : '闷牌');
   if (p.allin) tags.push('全下');
   return {
     tag: tags.join(' · '),
-    tagClass: p.folded ? 'red' : p.looked ? 'green' : '',
+    tagClass: p.folded ? '' : p.looked ? 'green' : '',
     sub: `${p.chips} 筹码 · 已投 ${p.contrib}`,
     count: null,
     cards: p.folded ? 0 : 3

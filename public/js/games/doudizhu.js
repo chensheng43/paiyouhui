@@ -2,16 +2,73 @@
 import { cardHtml, sortDdz } from '../cards.js';
 import { DDZ_TYPE_NAMES, parseDdz } from '../combos.js';
 
+// 每位玩家在当前一轮的动作：出牌或不出，显示在出牌人座位旁
+export function trickPlays(ctx) {
+  const s = ctx.s;
+  if (!s.trick || !s.trick.length) return [];
+  const latest = new Map();
+  for (const a of s.trick) latest.set(a.seat, a);
+  let currentSeat = null;
+  for (let i = s.trick.length - 1; i >= 0; i--) {
+    if (s.trick[i].type === 'play') {
+      currentSeat = s.trick[i].seat;
+      break;
+    }
+  }
+  let cap = 8;
+  try {
+    if (window.matchMedia('(max-width: 620px)').matches) cap = 6;
+  } catch {
+    cap = 8;
+  }
+  const out = [];
+  for (const [seat, a] of latest) {
+    const me = seat === ctx.mySeat;
+    const who = me ? '你' : ctx.esc(ctx.nameOf(seat));
+    if (a.type === 'pass') {
+      out.push({
+        seat,
+        me,
+        pass: true,
+        current: false,
+        html: `<span class="tp-head">${who}</span><span class="tp-pass">不出</span>`
+      });
+      continue;
+    }
+    const cards = sortDdz(a.cards || []);
+    const shown = cards.slice(0, cap);
+    const more = cards.length - shown.length;
+    const label = `${DDZ_TYPE_NAMES[a.pattern] || ''}${more > 0 ? ` · ${cards.length} 张` : ''}`;
+    const current = seat === currentSeat;
+    out.push({
+      seat,
+      me,
+      pass: false,
+      current,
+      html: `<span class="tp-head">${who}${label ? ` · ${label}` : ''}${current ? ' <em>最大</em>' : ''}</span>
+        <span class="tp-cards">${shown.map((c) => cardHtml(c, { small: true })).join('')}${
+          more > 0 ? `<i class="tp-more">+${more}</i>` : ''
+        }</span>`
+    });
+  }
+  return out;
+}
+
 export function renderCenter(ctx) {
   const s = ctx.s;
   const parts = [];
   if (s.multiplier > 1) {
     parts.push(`<div class="stage-label">倍数 ×${s.multiplier}${s.bombs ? ` · ${s.bombs} 炸` : ''}</div>`);
   }
-  if (s.bottom) {
-    parts.push(`<div class="stage-sub">底牌</div><div class="card-row">${s.bottom.map((c) => cardHtml(c, { small: true })).join('')}</div>`);
-  }
-  if (s.lastPlay) {
+  // 底牌统一放在牌桌边缘的独立层里，中央只保留轮次信息
+  let note = '';
+  if (s.trickOver) {
+    const leader = s.turn === ctx.mySeat ? '你' : ctx.esc(ctx.nameOf(s.turn));
+    note = `<div class="stage-sub new-trick">新一轮 · ${leader} 先出</div>`;
+  } else if (s.trick?.length) {
+    // 出牌已经显示在各自座位旁，中央只保留轮次信息
+  } else if (s.lastPlay) {
+    // 兼容旧服务端：没有 trick 字段时仍在中央显示最后一手
     parts.push(`<div class="play-spot"><div class="who">${ctx.esc(ctx.nameOf(s.lastPlay.seat))} · ${DDZ_TYPE_NAMES[s.lastPlay.type] || ''}</div>
       <div class="cards">${s.lastPlay.cards.map((c) => cardHtml(c, { small: true })).join('')}</div></div>`);
   } else if (s.phase === 'play') {
@@ -23,6 +80,7 @@ export function renderCenter(ctx) {
     const role = s.landlord === ctx.mySeat ? '你是地主' : '你是农民';
     parts.push(`<div class="level-row"><span class="tag ${s.landlord === ctx.mySeat ? 'gold' : 'green'}">${role}</span><span class="stage-sub">底分 ${s.base || '—'}</span></div>`);
   }
+  if (note) parts.push(note);
   return parts.join('');
 }
 
