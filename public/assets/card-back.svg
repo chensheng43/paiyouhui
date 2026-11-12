@@ -1,0 +1,30 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="120" height="168" viewBox="0 0 120 168">
+  <defs>
+    <linearGradient id="bg" x1="0" y1="0" x2="1" y2="1">
+      <stop offset="0" stop-color="#7d2230"/>
+      <stop offset=".5" stop-color="#5a1520"/>
+      <stop offset="1" stop-color="#3d0d16"/>
+    </linearGradient>
+    <pattern id="lattice" width="20" height="20" patternUnits="userSpaceOnUse">
+      <path d="M10 0 L20 10 L10 20 L0 10 Z" fill="none" stroke="#d9b56d" stroke-opacity=".16" stroke-width="1"/>
+      <circle cx="10" cy="10" r="1.4" fill="#e7c987" fill-opacity=".18"/>
+    </pattern>
+    <linearGradient id="gold" x1="0" y1="0" x2="1" y2="1">
+      <stop offset="0" stop-color="#f3dca9"/>
+      <stop offset="1" stop-color="#b78a44"/>
+    </linearGradient>
+  </defs>
+  <rect width="120" height="168" rx="10" fill="url(#bg)"/>
+  <rect width="120" height="168" rx="10" fill="url(#lattice)"/>
+  <rect x="6" y="6" width="108" height="156" rx="7" fill="none" stroke="url(#gold)" stroke-width="1.4" stroke-opacity=".8"/>
+  <rect x="10" y="10" width="100" height="148" rx="5" fill="none" stroke="url(#gold)" stroke-width=".6" stroke-opacity=".4"/>
+  <g transform="translate(60 84)">
+    <path d="M0 -40 C 26 -14, 38 4, 38 18 C 38 32, 26 40, 14 40 C 6 40, 0 34, 0 26 C 0 34, -6 40, -14 40 C -26 40, -38 32, -38 18 C -38 4, -26 -14, 0 -40 Z" fill="none" stroke="url(#gold)" stroke-width="2" stroke-opacity=".85"/>
+    <path d="M0 -28 C 18 -8, 27 6, 27 16 C 27 25, 19 30, 12 30 C 5 30, 0 24, 0 17 C 0 24, -5 30, -12 30 C -19 30, -27 25, -27 16 C -27 6, -18 -8, 0 -28 Z" fill="url(#gold)" fill-opacity=".18"/>
+    <text x="0" y="9" text-anchor="middle" font-family="Georgia,serif" font-size="22" fill="#e7c987" fill-opacity=".92">♠</text>
+  </g>
+  <g fill="url(#gold)" fill-opacity=".55">
+    <circle cx="18" cy="18" r="1.6"/><circle cx="102" cy="18" r="1.6"/>
+    <circle cx="18" cy="150" r="1.6"/><circle cx="102" cy="150" r="1.6"/>
+  </g>
+</svg>

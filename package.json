@@ -1,0 +1,20 @@
+{
+  "name": "paiyouhui",
+  "version": "1.0.0",
+  "private": true,
+  "type": "module",
+  "description": "牌友汇 · 局域网多人扑克游戏大杂烩（斗地主 / 炸金花 / 德州扑克 / 升级）",
+  "scripts": {
+    "start": "node server/index.js",
+    "dev": "node --watch server/index.js",
+    "test": "node tools/test-engines.js",
+    "test:ws": "node tools/test-ws.js",
+    "test:all": "node tools/test-engines.js && node tools/test-rooms.js && node tools/test-ws.js",
+    "lan": "node tools/lan-info.js",
+    "test:spectator": "node tools/test-spectator.js",
+    "test:rooms": "node tools/test-rooms.js"
+  },
+  "engines": {
+    "node": ">=18"
+  }
+}
